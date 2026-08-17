@@ -1,0 +1,19 @@
+import { useEffect, useMemo, useState } from 'react';
+import { api } from '../services/api';
+import QuestionField from '../components/QuestionField';
+
+export default function Estimator() {
+  const [config, setConfig] = useState(null), [answers, setAnswers] = useState({}), [contact, setContact] = useState({}), [step, setStep] = useState(0), [result, setResult] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(true), [submitting, setSubmitting] = useState(false);
+  useEffect(() => { api.getConfig().then(setConfig).catch(e => setError(e.message)).finally(() => setLoading(false)); }, []);
+  const questions = useMemo(() => config?.questions || [], [config]);
+  const totalSteps = questions.length + 1;
+  const current = step < questions.length ? questions[step] : null;
+  const setAnswer = (key, value) => setAnswers(prev => ({ ...prev, [key]: value }));
+  const next = () => { setError(''); if (current?.required && (answers[current.key] === undefined || answers[current.key] === '')) return setError(`${current.label} is required.`); if (current?.type === 'number' && (answers[current.key] < current.min || answers[current.key] > current.max)) return setError(`${current.label} must be between ${current.min} and ${current.max}.`); setStep(s => Math.min(s + 1, totalSteps - 1)); };
+  const back = () => { setError(''); setStep(s => Math.max(0, s - 1)); };
+  const submit = async e => { e.preventDefault(); setError(''); const missing = config.contact_fields.find(f => f.required && !contact[f.key]); if (missing) return setError(`${missing.label} is required.`); setSubmitting(true); try { setResult(await api.estimate({ ...contact, answers })); } catch (err) { setError([err.message, ...(err.details || [])].join(' ')); } finally { setSubmitting(false); } };
+  if (loading) return <div className="center">Loading estimator…</div>;
+  if (error && !config) return <div className="center error-card">{error}</div>;
+  if (result) return <main className="page"><div className="result-card"><div className="eyebrow">ESTIMATE READY</div><h1>Your estimated roofing range</h1><div className="range">{result.currency} {result.estimate_low.toLocaleString()} – {result.estimate_high.toLocaleString()}</div><p>This is a preliminary range based on the information you provided. A site assessment may change the final quote.</p><button className="primary" onClick={() => { setResult(null); setStep(0); }}>Start another estimate</button></div></main>;
+  return <main className="page"><section className="hero"><div><div className="eyebrow">NORTHLINE ROOFING & EXTERIORS</div><h1>Know your roofing budget before the first call.</h1><p>Answer a few questions and get a configuration-driven preliminary estimate.</p></div><a href="/admin/login" className="admin-link">Owner Panel →</a></section><section className="card"><div className="progress"><span>Step {step + 1} of {totalSteps}</span><div><i style={{ width: `${((step + 1) / totalSteps) * 100}%` }} /></div></div><form onSubmit={submit}>{current ? <QuestionField question={current} value={answers[current.key]} onChange={setAnswer} /> : <div className="contact-step"><h2>Where should we send your estimate?</h2>{config.contact_fields.map(field => <div className="field-block" key={field.key}><label>{field.label}</label><input type={field.type} placeholder={field.placeholder} value={contact[field.key] || ''} onChange={e => setContact(c => ({ ...c, [field.key]: e.target.value }))} required={field.required}/></div>)}</div>}{error && <div className="form-error">{error}</div>}<div className="actions">{step > 0 && <button type="button" className="secondary" onClick={back}>Back</button>}{step < totalSteps - 1 ? <button type="button" className="primary" onClick={next}>Continue</button> : <button className="primary" disabled={submitting}>{submitting ? 'Calculating…' : 'Get my estimate'}</button>}</div></form></section></main>;
+}

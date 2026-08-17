@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import { getAdminConfig, updateConfig } from '../controllers/configController.js';
+import { getLeads } from '../controllers/adminController.js';
+import { requireOwnerAuth } from '../middleware/auth.js';
+const router = Router();
+router.use(requireOwnerAuth);
+router.get('/config', getAdminConfig);
+router.put('/config', updateConfig);
+router.get('/leads', getLeads);
+export default router;
